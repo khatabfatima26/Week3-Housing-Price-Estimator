@@ -47,32 +47,35 @@ for key, default_value in {
 
 
 def load_dataset(uploaded_file):
-    """Load the housing dataset from an uploaded file or the default CSV."""
-    try:
-        if uploaded_file is not None:
-            uploaded_file.seek(0)
-            dataframe = pd.read_csv(uploaded_file)
-            st.session_state.data_source = "uploaded file"
-        else:
-            if not DATA_PATH.exists():
-                st.error(f"Default dataset not found at {DATA_PATH}")
-                return None
-            dataframe = pd.read_csv(DATA_PATH)
-            st.session_state.data_source = "default dataset"
-    except Exception as exc:
-        st.error(f"Unable to read the dataset: {exc}")
-        return None
 
-    if TARGET_COLUMN not in dataframe.columns:
-        st.error(f"The dataset must include a '{TARGET_COLUMN}' column.")
-        return None
+import os
+import pandas as pd
+import streamlit as st
 
-    if dataframe.empty:
-        st.error("The dataset is empty. Please upload a valid CSV.")
-        return None
+# Try to load default dataset, but don't crash if not found
+default_data_path = os.path.join(os.path.dirname(__file__), "data", "housing_data.csv")
 
-    return dataframe
+try:
+    df = pd.read_csv(default_data_path)
+    st.success("Default dataset loaded successfully!")
+    use_default = True
+except:
+    st.info("No default dataset found. Please upload your own CSV file below.")
+    use_default = False
+    df = None
 
+# File uploader (always show this)
+uploaded_file = st.file_uploader("Upload your housing dataset (CSV)", type=["csv"])
+
+if uploaded_file is not None:
+    df = pd.read_csv(uploaded_file)
+    st.success("Your uploaded dataset loaded successfully!")
+    use_default = True
+
+# Check if we have data
+if df is None:
+    st.warning("Please upload a CSV file to continue.")
+    st.stop()
 
 def prepare_training_data(dataframe):
     """Prepare training and test data from a DataFrame."""
