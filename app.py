@@ -1,3 +1,4 @@
+import os
 import streamlit as st
 import pandas as pd
 from pathlib import Path
@@ -13,7 +14,7 @@ from model import (
 )
 
 # Default dataset path and expected features.
-DATA_PATH = Path("data/housing_data.csv")
+DATA_PATH = Path(__file__).parent / "data" / "housing_data.csv"
 TARGET_COLUMN = "Price"
 FEATURE_COLUMNS = [
     "Square_Feet",
@@ -47,35 +48,30 @@ for key, default_value in {
 
 
 def load_dataset(uploaded_file):
+    """Load dataset from uploaded file or default path."""
+    if uploaded_file is not None:
+        try:
+            df = pd.read_csv(uploaded_file)
+            st.session_state.data_source = "uploaded"
+            st.success("Uploaded dataset loaded successfully!")
+            return df
+        except Exception as exc:
+            st.error(f"Failed to read uploaded file: {exc}")
+            return None
+    
+    # Try default dataset
+    try:
+        df = pd.read_csv(DATA_PATH)
+        st.session_state.data_source = "default"
+        st.success("Default dataset loaded successfully!")
+        return df
+    except FileNotFoundError:
+        st.info("No default dataset found. Please upload your own CSV file below.")
+        return None
+    except Exception as exc:
+        st.error(f"Failed to load default dataset: {exc}")
+        return None
 
-import os
-import pandas as pd
-import streamlit as st
-
-# Try to load default dataset, but don't crash if not found
-default_data_path = os.path.join(os.path.dirname(__file__), "data", "housing_data.csv")
-
-try:
-    df = pd.read_csv(default_data_path)
-    st.success("Default dataset loaded successfully!")
-    use_default = True
-except:
-    st.info("No default dataset found. Please upload your own CSV file below.")
-    use_default = False
-    df = None
-
-# File uploader (always show this)
-uploaded_file = st.file_uploader("Upload your housing dataset (CSV)", type=["csv"])
-
-if uploaded_file is not None:
-    df = pd.read_csv(uploaded_file)
-    st.success("Your uploaded dataset loaded successfully!")
-    use_default = True
-
-# Check if we have data
-if df is None:
-    st.warning("Please upload a CSV file to continue.")
-    st.stop()
 
 def prepare_training_data(dataframe):
     """Prepare training and test data from a DataFrame."""
@@ -263,7 +259,6 @@ with train_tab:
                         trained_model, X_train.columns.tolist()
                     )
                 except Exception as exc:
-                    # Fallback if coefficients cannot be extracted (e.g., model missing coef_)
                     st.session_state.coefficients = {f: 0.0 for f in X_train.columns.tolist()}
                     st.warning(f"Could not extract coefficients: {exc}")
                 st.session_state.feature_names = X_train.columns.tolist()
@@ -325,10 +320,8 @@ with predict_tab:
 
         if st.button("Predict Price"):
             try:
-                # Ensure prediction frame has same columns/order as training data
                 feature_names = st.session_state.get("feature_names", FEATURE_COLUMNS)
                 pred_df = pd.DataFrame([prediction_inputs])
-                # Add any missing features with a default of 0.0
                 for col in feature_names:
                     if col not in pred_df.columns:
                         pred_df[col] = 0.0
